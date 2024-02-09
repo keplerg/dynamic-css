@@ -30,13 +30,13 @@ CSS is a great way to keep your presentation out of your content (HTML). Wouldn'
 
 Just set variables at the top of your CSS file like:
 
-```
+```PHP
 set $color = #33CCFF;
 set $background-color = #000000;
 ```
 Now everywhere you use these colors, just use the variables instead:
 
-```
+```CSS
 p {
     color: $color;
     background-color: $background-color;
@@ -46,7 +46,7 @@ To change the colors throughout your entire CSS file, you only need to change th
 
 What if your web site has different themes? Use conditional logic to either switch between different blocks of CSS:
 
-```
+```CSS
 .body {
      if ( $_COOKIE['theme'] == 'bluesky' )
          color: #3366FF;
@@ -57,7 +57,7 @@ What if your web site has different themes? Use conditional logic to either swit
 ```
 or include a theme based CSS file conditionally:
 
-```
+```CSS
 .body {
     if ( $_COOKIE['theme'] == 'bluesky' )
          @include 'bluesky-theme.css';
