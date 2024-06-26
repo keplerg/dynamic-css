@@ -147,7 +147,7 @@ function filter( $_dyncss_input )
     $_dyncss_lines[$_dyncss_level] = explode( "\n", $_dyncss_input );
     if ($debug)
     {
-        $_dyncss_output = "/* DEBUG filter start ".strftime("%H:%M:%S")." */\n";
+        $_dyncss_output = "/* DEBUG filter start ".date_format(date_create("now"), "Y-m-d H:i:s")." */\n";
     }
     $_dyncss_vars = array();
 
@@ -434,7 +434,7 @@ if ($debug) {$_dyncss_output .= "/* DEBUG line: {$_dyncss_line_number} Clause=<"
     if ($debug)
     {
         $_dyncss_output .= "/* DEBUG processing time = ".(microtime(true) - $_dyncss_start)." seconds. expires = ".$ExpStr." */\n";
-        $_dyncss_output .= "/* DEBUG filter end ".strftime("%H:%M:%S")." */\n";
+        $_dyncss_output .= "/* DEBUG filter end ".date_format(date_create("now"), "Y-m-d H:i:s")." */\n";
     }
 
     if ($compress_comments)
