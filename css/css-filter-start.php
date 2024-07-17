@@ -144,7 +144,7 @@ if ($debug) {$_dyncss_output .= "/* DEBUG line: {$_dyncss_line_number} Clause=<"
                         $_dyncss_expires = preg_replace( '#week[s]?#i', '*604800', $_dyncss_expires );
                         $_dyncss_expires = preg_replace( '#month[s]?#i', '*2592000', $_dyncss_expires ); // approx.
                         $_dyncss_expires = preg_replace( '#year[s]?#i', '*31536000', $_dyncss_expires );
-                        $_dyncss_expires = eval( 'return (int)'.substitute_vars( $_dyncss_expires, $_dyncss_vars ).';' );
+                        $_dyncss_expires = @eval( 'return (int)'.substitute_vars( $_dyncss_expires, $_dyncss_vars ).';' );
 
                         if ($debug)
                         {
@@ -189,7 +189,7 @@ if ($debug) {$_dyncss_output .= "/* DEBUG line: {$_dyncss_line_number} Clause=<"
                     {
                         $_dyncss_key = $_dyncss_matches[1];
                         $_dyncss_value = rtrim($_dyncss_matches[2], "\r\n\t ;");
-                        $_dyncss_expr = eval( 'return '.substitute_delimited_vars( $_dyncss_value, $_dyncss_vars, true ).';' );
+                        $_dyncss_expr = @eval( 'return '.substitute_delimited_vars( $_dyncss_value, $_dyncss_vars, true ).';' );
                         if ($debug)
                         {
                             $_dyncss_output .= "/* DEBUG eval $".$_dyncss_key." = ".$_dyncss_value."  result: (".$_dyncss_expr.") */\n";
@@ -204,7 +204,7 @@ if ($debug) {$_dyncss_output .= "/* DEBUG line: {$_dyncss_line_number} Clause=<"
                     if ( $_dyncss_show_output )
                     {
                         $_dyncss_value = rtrim($_dyncss_matches[1], "\r\n\t ;");
-                        $_dyncss_expr = eval( 'return '.substitute_delimited_vars( $_dyncss_value, $_dyncss_vars, true ).';' );
+                        $_dyncss_expr = @eval( 'return '.substitute_delimited_vars( $_dyncss_value, $_dyncss_vars, true ).';' );
                         if ($debug)
                         {
                             $_dyncss_output .= "/* DEBUG eval ".$_dyncss_value."  result: (".$_dyncss_expr.") */\n";
@@ -229,7 +229,7 @@ if ($debug) {$_dyncss_output .= "/* DEBUG line: {$_dyncss_line_number} Clause=<"
                     if ( $_dyncss_show_output )
                     {
                         $_dyncss_value = rtrim($_dyncss_matches[1], "\r\n\t ;");
-                        $_dyncss_ifs[$_dyncss_if_level] = eval( 'return (boolean)'.substitute_delimited_vars( $_dyncss_value, $_dyncss_vars, true ).';' );
+                        $_dyncss_ifs[$_dyncss_if_level] = @eval( 'return (boolean)'.substitute_delimited_vars( $_dyncss_value, $_dyncss_vars, true ).';' );
                         $_dyncss_show_output = $_dyncss_ifs[$_dyncss_if_level];
                         if ($debug)
                         {
@@ -252,7 +252,7 @@ if ($debug) {$_dyncss_output .= "/* DEBUG line: {$_dyncss_line_number} Clause=<"
                         if ( ! $_dyncss_ifs[($_dyncss_if_level - 1)] )
                         {
                             $_dyncss_value = rtrim($_dyncss_matches[1], "\r\n\t ;");
-                            $_dyncss_ifs[($_dyncss_if_level - 1)] = eval( 'return (boolean)'.substitute_delimited_vars( $_dyncss_value, $_dyncss_vars, true ).';' );
+                            $_dyncss_ifs[($_dyncss_if_level - 1)] = @eval( 'return (boolean)'.substitute_delimited_vars( $_dyncss_value, $_dyncss_vars, true ).';' );
                             // $_dyncss_show_output = $_dyncss_ifs[($_dyncss_if_level - 1)];
                             $_dyncss_show_output = should_execute( $_dyncss_ifs, $_dyncss_if_level );
                             if ($debug)
@@ -302,7 +302,7 @@ if ($debug) {$_dyncss_output .= "/* DEBUG line: {$_dyncss_line_number} Clause=<"
                         $_dyncss_output .= "/* DEBUG including style file ".$_dyncss_fn." */";
                     }
                     $_dyncss_contents = file_get_contents( $_dyncss_fn );
-                    $_dyncss_output .= process( $dyncss_fn, ($_dyncss_level+1), $_dyncss_vars, explode( "\n", $_dyncss_contents ) );
+                    $_dyncss_output .= process( $_dyncss_fn, ($_dyncss_level+1), $_dyncss_vars, explode( "\n", $_dyncss_contents ) );
                     if ( $cache && ! preg_match( '/http[s]?:\/\/.*/', $_dyncss_fn) )
                     {
                         $_dyncss_dependent_files[$_dyncss_fn] = stat( $_dyncss_fn );
