@@ -34,6 +34,7 @@ $matte_color = 'fff'; // matte color or alpha blending on transparent images
 $_dyncss_system_boolean_parameters = array('debug', 'cache', 'allow_eol_comments', 'compress', 'compress_comments', 'handle_pngs', 'use_alpha_filter', 'convert_to_png8');
 $_dyncss_system_string_parameters = array('filter_sizing_method');
 $_dyncss_expression_tokens = array('if','elseif','elif','eval');
+$_dyncss_vars = array();
 
 // see if any settings were overridden
 if (isset($_SERVER['QUERY_STRING']))
@@ -66,8 +67,8 @@ if (isset($_SERVER['QUERY_STRING']))
     }
 }
 
-function process( $_dyncss_fn, $_dyncss_level, $_dyncss_vars, $_dyncss_lines ) {
-    global $debug, $cache, $allow_eol_comments, $compress, $compress_comments, $handle_pngs, $matte_color, $_dyncss_expression_tokens; // , $_dyncss_start, $_dyncss_expires, $_dyncss_output;
+function process( $_dyncss_fn, $_dyncss_level, $_dyncss_lines ) {
+    global $debug, $cache, $allow_eol_comments, $compress, $compress_comments, $handle_pngs, $matte_color, $_dyncss_expression_tokens, $_dyncss_vars; // , $_dyncss_start, $_dyncss_expires, $_dyncss_output;
     //
     $_dyncss_line_number = 0;
     $_dyncss_if_level = 0;
@@ -76,269 +77,269 @@ function process( $_dyncss_fn, $_dyncss_level, $_dyncss_vars, $_dyncss_lines ) {
     $_dyncss_prev_line = '';
     $_dyncss_output = '';
     $_dyncss_show_output = true;
-        // Can't use foreach since $_dyncss_lines is modified in the loop
-        foreach ( $_dyncss_lines as $_dyncss_index => $_dyncss_line )
+    // Can't use foreach since $_dyncss_lines is modified in the loop
+    foreach ( $_dyncss_lines as $_dyncss_index => $_dyncss_line )
+    {
+        $_dyncss_line_number++;
+
+        if ($allow_eol_comments)
         {
-            $_dyncss_line_number++;
-
-            if ($allow_eol_comments)
+            if ($compress_comments)
             {
-                if ($compress_comments)
-                {
-                    // remove end-of-line comments (like this one)
-                    $_dyncss_line = preg_replace( '#([^"\':]|^)//.*#', '${1}', $_dyncss_line );
-                }
-                else
-                {
-                    // convert end-of-line comments to regular comments
-                    $_dyncss_line = preg_replace( '#([^"\':]|^)//\s*([^\r\n]*)\s*#', "\${1}/* \${2} */", $_dyncss_line );
-                }
+                // remove end-of-line comments (like this one)
+                $_dyncss_line = preg_replace( '#([^"\':]|^)//.*#', '${1}', $_dyncss_line );
             }
-
-            // see if the newline was escaped - if so, concatenate the line
-            $_dyncss_line = rtrim($_dyncss_line, "\r\n");
-            if (strlen($_dyncss_line) > 0 && $_dyncss_line[(strlen($_dyncss_line) - 1)] == "\\")
+            else
             {
-                $_dyncss_prev_line .= substr($_dyncss_line, 0, -1);
-                continue;
+                // convert end-of-line comments to regular comments
+                $_dyncss_line = preg_replace( '#([^"\':]|^)//\s*([^\r\n]*)\s*#', "\${1}/* \${2} */", $_dyncss_line );
             }
-            $_dyncss_line = $_dyncss_prev_line . $_dyncss_line;
-            $_dyncss_prev_line = '';
+        }
 
-            $_dyncss_first_token = strtolower( preg_replace( '#([^ \t\n=;]*).*#', '$1', $_dyncss_line ) );
+        // see if the newline was escaped - if so, concatenate the line
+        $_dyncss_line = rtrim($_dyncss_line, "\r\n");
+        if (strlen($_dyncss_line) > 0 && $_dyncss_line[(strlen($_dyncss_line) - 1)] == "\\")
+        {
+            $_dyncss_prev_line .= substr($_dyncss_line, 0, -1);
+            continue;
+        }
+        $_dyncss_line = $_dyncss_prev_line . $_dyncss_line;
+        $_dyncss_prev_line = '';
+
+        $_dyncss_first_token = strtolower( preg_replace( '#([^ \t\n=;]*).*#', '$1', $_dyncss_line ) );
+        if ($debug)
+        {
+            $_dyncss_output .= '/* DEBUG first_token: <'.$_dyncss_first_token.'>';
+        }
+        $_dyncss_contains_expression = ( in_array( $_dyncss_first_token, $_dyncss_expression_tokens ) );
+        $_dyncss_spans_lines = ((strlen($_dyncss_line) > 0 && $_dyncss_line[strlen( $_dyncss_line ) - 1] == '\\')?true:false );
+        if ($debug)
+        {
+            $_dyncss_output .= ' contains expression: <'.(($_dyncss_contains_expression)?'YES':'NO').'> spans lines: <'.(($_dyncss_spans_lines)?'YES':'NO').'> line: '.$_dyncss_line_number." */\n";
+        }
+        $_dyncss_line = substitute_delimited_vars( $_dyncss_line, $_dyncss_vars, ($_dyncss_contains_expression && ! $_dyncss_spans_lines) );
+        $_dyncss_clauses = preg_split( '/([\{\};])/', str_replace('\\;', '<--|-->', $_dyncss_line), -1, PREG_SPLIT_DELIM_CAPTURE );
+        $_dyncss_suppress_delimiter = false;
+
+        foreach( $_dyncss_clauses as $_dyncss_clause )
+        {
+            $_dyncss_clause = str_replace('<--|-->', ';', $_dyncss_clause);
             if ($debug)
             {
-                $_dyncss_output .= '/* DEBUG first_token: <'.$_dyncss_first_token.'>';
+                $_dyncss_output .= "/* DEBUG clause: ".$_dyncss_clause." line: ".$_dyncss_line_number." */\n";
             }
-            $_dyncss_contains_expression = ( in_array( $_dyncss_first_token, $_dyncss_expression_tokens ) );
-            $_dyncss_spans_lines = ((strlen($_dyncss_line) > 0 && $_dyncss_line[strlen( $_dyncss_line ) - 1] == '\\')?true:false );
-            if ($debug)
-            {
-                $_dyncss_output .= ' contains expression: <'.(($_dyncss_contains_expression)?'YES':'NO').'> spans lines: <'.(($_dyncss_spans_lines)?'YES':'NO').'> line: '.$_dyncss_line_number." */\n";
-            }
-            $_dyncss_line = substitute_delimited_vars( $_dyncss_line, $_dyncss_vars, ($_dyncss_contains_expression && ! $_dyncss_spans_lines) );
-            $_dyncss_clauses = preg_split( '/([\{\};])/', str_replace('\\;', '<--|-->', $_dyncss_line), -1, PREG_SPLIT_DELIM_CAPTURE );
-            $_dyncss_suppress_delimiter = false;
-
-            foreach( $_dyncss_clauses as $_dyncss_clause )
-            {
-                $_dyncss_clause = str_replace('<--|-->', ';', $_dyncss_clause);
-                if ($debug)
-                {
-                    $_dyncss_output .= "/* DEBUG clause: ".$_dyncss_clause." line: ".$_dyncss_line_number." */\n";
-                }
 
 if ($debug) {$_dyncss_output .= "/* DEBUG line: {$_dyncss_line_number} Clause=<".$_dyncss_clause."> - should execute? ".(($_dyncss_show_output)?"YES":"NO")." */\n";}
-                if (preg_match( '#^\s*expires\s*(.*)#i', $_dyncss_clause, $_dyncss_matches) === 1)
+            if (preg_match( '#^\s*expires\s*(.*)#i', $_dyncss_clause, $_dyncss_matches) === 1)
+            {
+                $_dyncss_suppress_delimiter = true;
+                if ( $_dyncss_show_output )
                 {
-                    $_dyncss_suppress_delimiter = true;
-                    if ( $_dyncss_show_output )
-                    {
-                        $_dyncss_expires = rtrim($_dyncss_matches[1], "\r\n\t ;");
-                        $_dyncss_expires = substitute_vars( $_dyncss_expires, $_dyncss_vars );
-                        $_dyncss_expires = preg_replace( '#immediate|yesterday#i', '-86400', $_dyncss_expires );
-                        $_dyncss_expires = preg_replace( '#now#i', '0', $_dyncss_expires );
-                        $_dyncss_expires = preg_replace( '#minute[s]?#i', '*60', $_dyncss_expires );
-                        $_dyncss_expires = preg_replace( '#hour[s]?#i', '*3600', $_dyncss_expires );
-                        $_dyncss_expires = preg_replace( '#day[s]?#i', '*86400', $_dyncss_expires );
-                        $_dyncss_expires = preg_replace( '#week[s]?#i', '*604800', $_dyncss_expires );
-                        $_dyncss_expires = preg_replace( '#month[s]?#i', '*2592000', $_dyncss_expires ); // approx.
-                        $_dyncss_expires = preg_replace( '#year[s]?#i', '*31536000', $_dyncss_expires );
-                        $_dyncss_expires = @eval( 'return (int)'.substitute_vars( $_dyncss_expires, $_dyncss_vars ).';' );
+                    $_dyncss_expires = rtrim($_dyncss_matches[1], "\r\n\t ;");
+                    $_dyncss_expires = substitute_vars( $_dyncss_expires, $_dyncss_vars );
+                    $_dyncss_expires = preg_replace( '#immediate|yesterday#i', '-86400', $_dyncss_expires );
+                    $_dyncss_expires = preg_replace( '#now#i', '0', $_dyncss_expires );
+                    $_dyncss_expires = preg_replace( '#minute[s]?#i', '*60', $_dyncss_expires );
+                    $_dyncss_expires = preg_replace( '#hour[s]?#i', '*3600', $_dyncss_expires );
+                    $_dyncss_expires = preg_replace( '#day[s]?#i', '*86400', $_dyncss_expires );
+                    $_dyncss_expires = preg_replace( '#week[s]?#i', '*604800', $_dyncss_expires );
+                    $_dyncss_expires = preg_replace( '#month[s]?#i', '*2592000', $_dyncss_expires ); // approx.
+                    $_dyncss_expires = preg_replace( '#year[s]?#i', '*31536000', $_dyncss_expires );
+                    $_dyncss_expires = @eval( 'return (int)'.substitute_vars( $_dyncss_expires, $_dyncss_vars ).';' );
 
-                        if ($debug)
-                        {
-                            $_dyncss_output .= "/* DEBUG expires = ".$_dyncss_expires." line: ".$_dyncss_line_number." */\n";
-                        }
-                    }
-                }
-                else if (preg_match( '#^\s*set-header\s*(.*)#i', $_dyncss_clause, $_dyncss_matches) === 1)
-                {
-                    $_dyncss_suppress_delimiter = true;
-                    if ( $_dyncss_show_output )
-                    {
-                        $_dyncss_header = rtrim($_dyncss_matches[1], "\r\n\t ;");
-                        $_dyncss_header = substitute_vars( $_dyncss_header, $_dyncss_vars );
-                        header($_dyncss_header);
-
-                        if ($debug)
-                        {
-                            $_dyncss_output .= "/* DEBUG set-header = ".$_dyncss_header." line: ".$_dyncss_line_number." */\n";
-                        }
-                    }
-                }
-                else if (preg_match( '#^\s*set\s+\$?([_a-z][a-z0-9_-]*)\s*=?\s*(.*)\s*#i', $_dyncss_clause, $_dyncss_matches) === 1)
-                {
-                    $_dyncss_suppress_delimiter = true;
-                    if ( $_dyncss_show_output )
-                    {
-                        $_dyncss_key = $_dyncss_matches[1];
-                        $_dyncss_value = substitute_vars( strip_quotes( rtrim($_dyncss_matches[2], "\r\n\t ;") ), $_dyncss_vars );
-                        if ($debug)
-                        {
-                            $_dyncss_output .= "/* DEBUG set ".$_dyncss_key." = ".$_dyncss_value." */\n";
-                        }
-                        $_dyncss_vars[$_dyncss_key] = $_dyncss_value;
-                        $$_dyncss_key = $_dyncss_value;
-                    }
-                }
-                else if (preg_match( '#^\s*eval\s+\$?([_a-z][a-z0-9_-]*)\s*=?\s*(.*)#i', $_dyncss_clause, $_dyncss_matches) === 1)
-                {
-                    $_dyncss_suppress_delimiter = true;
-                    if ( $_dyncss_show_output )
-                    {
-                        $_dyncss_key = $_dyncss_matches[1];
-                        $_dyncss_value = rtrim($_dyncss_matches[2], "\r\n\t ;");
-                        $_dyncss_expr = @eval( 'return '.substitute_delimited_vars( $_dyncss_value, $_dyncss_vars, true ).';' );
-                        if ($debug)
-                        {
-                            $_dyncss_output .= "/* DEBUG eval $".$_dyncss_key." = ".$_dyncss_value."  result: (".$_dyncss_expr.") */\n";
-                        }
-                        $_dyncss_vars[$_dyncss_key] = $_dyncss_expr;
-                        $$_dyncss_key = $_dyncss_expr;
-                    }
-                }
-                else if (preg_match( '#^\s*eval\s+(.*)#i', $_dyncss_clause, $_dyncss_matches) === 1)
-                {
-                    $_dyncss_suppress_delimiter = true;
-                    if ( $_dyncss_show_output )
-                    {
-                        $_dyncss_value = rtrim($_dyncss_matches[1], "\r\n\t ;");
-                        $_dyncss_expr = @eval( 'return '.substitute_delimited_vars( $_dyncss_value, $_dyncss_vars, true ).';' );
-                        if ($debug)
-                        {
-                            $_dyncss_output .= "/* DEBUG eval ".$_dyncss_value."  result: (".$_dyncss_expr.") */\n";
-                        }
-                    }
-                }
-                else if (preg_match( '#^\s*matte-color:\s+\#([0-9abcdef]{6}|[0-9abcdef]{3})\s*#i', $_dyncss_clause, $_dyncss_matches) === 1)
-                {
-                    $_dyncss_suppress_delimiter = true;
-                    if ( $_dyncss_show_output )
-                    {
-                        $matte_color = substitute_vars( $_dyncss_matches[1], $_dyncss_vars );
-                        if ($debug)
-                        {
-                            $_dyncss_output .= "/* DEBUG matte-color: ".$matte_color." */\n";
-                        }
-                    }
-                }
-                else if (preg_match( '#^\s*if\s+(.*)\s*#i', $_dyncss_clause, $_dyncss_matches) === 1)
-                {
-                    $_dyncss_suppress_delimiter = true;
-                    if ( $_dyncss_show_output )
-                    {
-                        $_dyncss_value = rtrim($_dyncss_matches[1], "\r\n\t ;");
-                        $_dyncss_ifs[$_dyncss_if_level] = @eval( 'return (boolean)'.substitute_delimited_vars( $_dyncss_value, $_dyncss_vars, true ).';' );
-                        $_dyncss_show_output = $_dyncss_ifs[$_dyncss_if_level];
-                        if ($debug)
-                        {
-                            $_dyncss_output .= "/* DEBUG if ".$_dyncss_value."  result: (".(($_dyncss_ifs[$_dyncss_if_level])?'TRUE':'FALSE').") */\n";
-                        }
-                    }
-                    else
-                    {
-                        $_dyncss_ifs[$_dyncss_if_level] = false;
-                    }
-                    $_dyncss_if_level++;
-                }
-                else if (preg_match( '#^\s*elif\s+(.*)\s*#i', $_dyncss_clause, $_dyncss_matches) === 1
-                    || preg_match( '#^\s*elseif\s+(.*)\s*#i', $_dyncss_clause, $_dyncss_matches) === 1)
-                {
-                    $_dyncss_suppress_delimiter = true;
-                    $_dyncss_suppress_to_endif = $_dyncss_suppress_to_endif || $_dyncss_ifs[($_dyncss_if_level - 1)];
-                    if ( ! $_dyncss_suppress_to_endif )
-                    {
-                        if ( ! $_dyncss_ifs[($_dyncss_if_level - 1)] )
-                        {
-                            $_dyncss_value = rtrim($_dyncss_matches[1], "\r\n\t ;");
-                            $_dyncss_ifs[($_dyncss_if_level - 1)] = @eval( 'return (boolean)'.substitute_delimited_vars( $_dyncss_value, $_dyncss_vars, true ).';' );
-                            // $_dyncss_show_output = $_dyncss_ifs[($_dyncss_if_level - 1)];
-                            $_dyncss_show_output = should_execute( $_dyncss_ifs, $_dyncss_if_level );
-                            if ($debug)
-                            {
-                                $_dyncss_output .= "/* DEBUG elseif ".$_dyncss_value."  result: (".(($_dyncss_ifs[$_dyncss_if_level - 1])?'TRUE':'FALSE').") */\n";
-                            }
-                        }
-                        elseif ($debug)
-                        {
-                            $_dyncss_output .= "/* DEBUG elseif not called level: ".($_dyncss_if_level - 1)."  if state: (".(($_dyncss_ifs[$_dyncss_if_level - 1])?'TRUE':'FALSE').") */\n";
-                        }
-                    }
-                    else
-                    {
-                        $_dyncss_show_output = false;
-                        if ($debug)
-                        {
-                            $_dyncss_output .= "/* DEBUG elseif not called level: ".($_dyncss_if_level - 1)."  already satisfied condition (short circuited) */\n";
-                        }
-                    }
-                }
-                else if (preg_match( '#^\s*else\s*#i', $_dyncss_clause, $_dyncss_matches) === 1)
-                {
-                    $_dyncss_suppress_delimiter = true;
-                    $_dyncss_ifs[($_dyncss_if_level - 1)] = ! $_dyncss_ifs[($_dyncss_if_level - 1)];
-                    $_dyncss_show_output = should_execute( $_dyncss_ifs, $_dyncss_if_level );
-                }
-                else if (preg_match( '#^\s*endif\s*#i', $_dyncss_clause, $_dyncss_matches) === 1)
-                {
-                    $_dyncss_suppress_delimiter = true;
-                    $_dyncss_suppress_to_endif = false;
-                    $_dyncss_if_level--;
-                    if ($_dyncss_if_level < 0)
-                    {
-                        $_dyncss_output .= "/* ERROR unmatched endif at line ".$_dyncss_line_number." */";
-                    }
-                    $_dyncss_show_output = should_execute( $_dyncss_ifs, $_dyncss_if_level );
-                }
-                else if (preg_match( '#^\s*@include\s*url\(\s*["\']?([^"\'\s]+)["\']?\s*\)\s*#i', $_dyncss_clause, $_dyncss_matches) === 1
-                    || preg_match( '#^\s*@include\s*["\']?([^"\'\s]+)["\']?\s*#i', $_dyncss_clause, $_dyncss_matches) === 1)
-                {
-                    $_dyncss_suppress_delimiter = true;
-                    $_dyncss_value = rtrim($_dyncss_matches[1], "\r\n\t ;");
-                    $_dyncss_fn = substitute_vars( $_dyncss_value, $_dyncss_vars );
                     if ($debug)
                     {
-                        $_dyncss_output .= "/* DEBUG including style file ".$_dyncss_fn." */";
+                        $_dyncss_output .= "/* DEBUG expires = ".$_dyncss_expires." line: ".$_dyncss_line_number." */\n";
                     }
-                    $_dyncss_contents = file_get_contents( $_dyncss_fn );
-                    $_dyncss_output .= process( $_dyncss_fn, ($_dyncss_level+1), $_dyncss_vars, explode( "\n", $_dyncss_contents ) );
-                    if ( $cache && ! preg_match( '/http[s]?:\/\/.*/', $_dyncss_fn) )
+                }
+            }
+            else if (preg_match( '#^\s*set-header\s*(.*)#i', $_dyncss_clause, $_dyncss_matches) === 1)
+            {
+                $_dyncss_suppress_delimiter = true;
+                if ( $_dyncss_show_output )
+                {
+                    $_dyncss_header = rtrim($_dyncss_matches[1], "\r\n\t ;");
+                    $_dyncss_header = substitute_vars( $_dyncss_header, $_dyncss_vars );
+                    header($_dyncss_header);
+
+                    if ($debug)
                     {
-                        $_dyncss_dependent_files[$_dyncss_fn] = stat( $_dyncss_fn );
+                        $_dyncss_output .= "/* DEBUG set-header = ".$_dyncss_header." line: ".$_dyncss_line_number." */\n";
+                    }
+                }
+            }
+            else if (preg_match( '#^\s*set\s+\$?([_a-z][a-z0-9_-]*)\s*=?\s*(.*)\s*#i', $_dyncss_clause, $_dyncss_matches) === 1)
+            {
+                $_dyncss_suppress_delimiter = true;
+                if ( $_dyncss_show_output )
+                {
+                    $_dyncss_key = $_dyncss_matches[1];
+                    $_dyncss_value = substitute_vars( strip_quotes( rtrim($_dyncss_matches[2], "\r\n\t ;") ), $_dyncss_vars );
+                    if ($debug)
+                    {
+                        $_dyncss_output .= "/* DEBUG set ".$_dyncss_key." = ".$_dyncss_value." */\n";
+                    }
+                    $_dyncss_vars[$_dyncss_key] = $_dyncss_value;
+                    $$_dyncss_key = $_dyncss_value;
+                }
+            }
+            else if (preg_match( '#^\s*eval\s+\$?([_a-z][a-z0-9_-]*)\s*=?\s*(.*)#i', $_dyncss_clause, $_dyncss_matches) === 1)
+            {
+                $_dyncss_suppress_delimiter = true;
+                if ( $_dyncss_show_output )
+                {
+                    $_dyncss_key = $_dyncss_matches[1];
+                    $_dyncss_value = rtrim($_dyncss_matches[2], "\r\n\t ;");
+                    $_dyncss_expr = @eval( 'return '.substitute_vars( $_dyncss_value, $_dyncss_vars, true ).';' );
+                    if ($debug)
+                    {
+                        $_dyncss_output .= "/* DEBUG eval $".$_dyncss_key." = ".$_dyncss_value."  result: (".$_dyncss_expr.") */\n";
+                    }
+                    $_dyncss_vars[$_dyncss_key] = $_dyncss_expr;
+                    $$_dyncss_key = $_dyncss_expr;
+                }
+            }
+            else if (preg_match( '#^\s*eval\s+(.*)#i', $_dyncss_clause, $_dyncss_matches) === 1)
+            {
+                $_dyncss_suppress_delimiter = true;
+                if ( $_dyncss_show_output )
+                {
+                    $_dyncss_value = rtrim($_dyncss_matches[1], "\r\n\t ;");
+                    $_dyncss_expr = @eval( 'return '.substitute_vars( $_dyncss_value, $_dyncss_vars, true ).';' );
+                    if ($debug)
+                    {
+                        $_dyncss_output .= "/* DEBUG eval ".$_dyncss_value."  result: (".$_dyncss_expr.") */\n";
+                    }
+                }
+            }
+            else if (preg_match( '#^\s*matte-color:\s+\#([0-9abcdef]{6}|[0-9abcdef]{3})\s*#i', $_dyncss_clause, $_dyncss_matches) === 1)
+            {
+                $_dyncss_suppress_delimiter = true;
+                if ( $_dyncss_show_output )
+                {
+                    $matte_color = substitute_vars( $_dyncss_matches[1], $_dyncss_vars );
+                    if ($debug)
+                    {
+                        $_dyncss_output .= "/* DEBUG matte-color: ".$matte_color." */\n";
+                    }
+                }
+            }
+            else if (preg_match( '#^\s*if\s+(.*)\s*#i', $_dyncss_clause, $_dyncss_matches) === 1)
+            {
+                $_dyncss_suppress_delimiter = true;
+                if ( $_dyncss_show_output )
+                {
+                    $_dyncss_value = rtrim($_dyncss_matches[1], "\r\n\t ;");
+                    $_dyncss_ifs[$_dyncss_if_level] = @eval( 'return (boolean)'.substitute_vars( $_dyncss_value, $_dyncss_vars, true ).';' );
+                    $_dyncss_show_output = $_dyncss_ifs[$_dyncss_if_level];
+                    if ($debug)
+                    {
+                        $_dyncss_output .= "/* DEBUG if ".$_dyncss_value."  result: (".(($_dyncss_ifs[$_dyncss_if_level])?'TRUE':'FALSE').") */\n";
                     }
                 }
                 else
                 {
-                    if ( $_dyncss_show_output )
+                    $_dyncss_ifs[$_dyncss_if_level] = false;
+                }
+                $_dyncss_if_level++;
+            }
+            else if (preg_match( '#^\s*elif\s+(.*)\s*#i', $_dyncss_clause, $_dyncss_matches) === 1
+                || preg_match( '#^\s*elseif\s+(.*)\s*#i', $_dyncss_clause, $_dyncss_matches) === 1)
+            {
+                $_dyncss_suppress_delimiter = true;
+                $_dyncss_suppress_to_endif = $_dyncss_suppress_to_endif || $_dyncss_ifs[($_dyncss_if_level - 1)];
+                if ( ! $_dyncss_suppress_to_endif )
+                {
+                    if ( ! $_dyncss_ifs[($_dyncss_if_level - 1)] )
                     {
-                        $_dyncss_clause = substitute_vars( $_dyncss_clause, $_dyncss_vars );
+                        $_dyncss_value = rtrim($_dyncss_matches[1], "\r\n\t ;");
+                        $_dyncss_ifs[($_dyncss_if_level - 1)] = @eval( 'return (boolean)'.substitute_vars( $_dyncss_value, $_dyncss_vars, true ).';' );
+                        // $_dyncss_show_output = $_dyncss_ifs[($_dyncss_if_level - 1)];
+                        $_dyncss_show_output = should_execute( $_dyncss_ifs, $_dyncss_if_level );
+                        if ($debug)
+                        {
+                            $_dyncss_output .= "/* DEBUG elseif ".$_dyncss_value."  result: (".(($_dyncss_ifs[$_dyncss_if_level - 1])?'TRUE':'FALSE').") */\n";
+                        }
+                    }
+                    elseif ($debug)
+                    {
+                        $_dyncss_output .= "/* DEBUG elseif not called level: ".($_dyncss_if_level - 1)."  if state: (".(($_dyncss_ifs[$_dyncss_if_level - 1])?'TRUE':'FALSE').") */\n";
+                    }
+                }
+                else
+                {
+                    $_dyncss_show_output = false;
+                    if ($debug)
+                    {
+                        $_dyncss_output .= "/* DEBUG elseif not called level: ".($_dyncss_if_level - 1)."  already satisfied condition (short circuited) */\n";
+                    }
+                }
+            }
+            else if (preg_match( '#^\s*else\s*#i', $_dyncss_clause, $_dyncss_matches) === 1)
+            {
+                $_dyncss_suppress_delimiter = true;
+                $_dyncss_ifs[($_dyncss_if_level - 1)] = ! $_dyncss_ifs[($_dyncss_if_level - 1)];
+                $_dyncss_show_output = should_execute( $_dyncss_ifs, $_dyncss_if_level );
+            }
+            else if (preg_match( '#^\s*endif\s*#i', $_dyncss_clause, $_dyncss_matches) === 1)
+            {
+                $_dyncss_suppress_delimiter = true;
+                $_dyncss_suppress_to_endif = false;
+                $_dyncss_if_level--;
+                if ($_dyncss_if_level < 0)
+                {
+                    $_dyncss_output .= "/* ERROR unmatched endif at line ".$_dyncss_line_number." */";
+                }
+                $_dyncss_show_output = should_execute( $_dyncss_ifs, $_dyncss_if_level );
+            }
+            else if (preg_match( '#^\s*@include\s*url\(\s*["\']?([^"\'\s]+)["\']?\s*\)\s*#i', $_dyncss_clause, $_dyncss_matches) === 1
+                || preg_match( '#^\s*@include\s*["\']?([^"\'\s]+)["\']?\s*#i', $_dyncss_clause, $_dyncss_matches) === 1)
+            {
+                $_dyncss_suppress_delimiter = true;
+                $_dyncss_value = rtrim($_dyncss_matches[1], "\r\n\t ;");
+                $_dyncss_fn = substitute_vars( $_dyncss_value, $_dyncss_vars );
+                if ($debug)
+                {
+                    $_dyncss_output .= "/* DEBUG including style file ".$_dyncss_fn." */";
+                }
+                $_dyncss_contents = file_get_contents( $_dyncss_fn );
+                $_dyncss_output .= process( $_dyncss_fn, ($_dyncss_level+1), explode( "\n", $_dyncss_contents ) );
+                if ( $cache && ! preg_match( '/http[s]?:\/\/.*/', $_dyncss_fn) )
+                {
+                    $_dyncss_dependent_files[$_dyncss_fn] = stat( $_dyncss_fn );
+                }
+            }
+            else
+            {
+                if ( $_dyncss_show_output )
+                {
+                    $_dyncss_clause = substitute_vars( $_dyncss_clause, $_dyncss_vars );
 
-                        if ( $handle_pngs && stristr($_dyncss_clause, '.png') )
-                        {
-                            $_dyncss_clause = handle_pngs( $_dyncss_clause );
-                        }
-                        if ($_dyncss_clause != ';' || ! $_dyncss_suppress_delimiter)
-                        {
-                            $_dyncss_output .= trim($_dyncss_clause) . "\n";
-                            $_dyncss_suppress_delimiter = false;
-                        }
+                    if ( $handle_pngs && stristr($_dyncss_clause, '.png') )
+                    {
+                        $_dyncss_clause = handle_pngs( $_dyncss_clause );
+                    }
+                    if ($_dyncss_clause != ';' || ! $_dyncss_suppress_delimiter)
+                    {
+                        $_dyncss_output .= trim($_dyncss_clause) . "\n";
+                        $_dyncss_suppress_delimiter = false;
                     }
                 }
             }
         }
+    }
 
     if ($_dyncss_if_level > 0)
     {
         $_dyncss_output .= "/* ERROR ".$_dyncss_if_level." unterminated if statements */\n";
     }
 
-        return $_dyncss_output;
+    return $_dyncss_output;
 }
 
 function filter( $_dyncss_input )
 {
-    global $debug, $cache, $allow_eol_comments, $compress, $compress_comments, $handle_pngs, $matte_color, $_dyncss_expression_tokens; // , $_dyncss_start, $_dyncss_expires, $_dyncss_output;
+    global $debug, $cache, $allow_eol_comments, $compress, $compress_comments, $handle_pngs, $matte_color, $_dyncss_expression_tokens, $_dyncss_vars; // , $_dyncss_start, $_dyncss_expires, $_dyncss_output;
 
     header("Content-type: text/css;");
     header("Cache-Control: must-revalidate;");
@@ -427,7 +428,6 @@ function filter( $_dyncss_input )
     {
         $_dyncss_output = "/* DEBUG filter start ".date_format(date_create("now"), "Y-m-d H:i:s")." */\n";
     }
-    $_dyncss_vars = array();
 
     // treat any passed parameters as variables
     if (isset($_SERVER['QUERY_STRING']))
@@ -445,14 +445,14 @@ function filter( $_dyncss_input )
         }
     }
 
-    $_dyncss_output .= process( basename($_SERVER['REQUEST_URI']), $_dyncss_level, $_dyncss_vars, explode( "\n", $_dyncss_input ) );
+    $_dyncss_output .= process( basename($_SERVER['REQUEST_URI']), $_dyncss_level, explode( "\n", $_dyncss_input ) );
 
     $_dyncss_expDate = gmdate("D, d M Y H:i:s", time() + $_dyncss_expires) . " GMT";
     header("Expires: ".$_dyncss_expDate);
     header("Last-Modified: ".$_dyncss_expDate);
     if ($debug)
     {
-        $_dyncss_output .= "/* DEBUG processing time = ".(microtime(true) - $_dyncss_start)." seconds. expires = ".$ExpStr." */\n";
+        $_dyncss_output .= "/* DEBUG processing time = ".(microtime(true) - $_dyncss_start)." seconds. expires = ".$_dyncss_expDate." */\n";
         $_dyncss_output .= "/* DEBUG filter end ".date_format(date_create("now"), "Y-m-d H:i:s")." */\n";
     }
 
