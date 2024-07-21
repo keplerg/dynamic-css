@@ -306,7 +306,7 @@ if ($debug) {$_dyncss_output .= "/* DEBUG line: {$_dyncss_line_number} Clause=<"
                 $_dyncss_output .= process( $_dyncss_fn, ($_dyncss_level+1), explode( "\n", $_dyncss_contents ) );
                 if ( $cache && ! preg_match( '/http[s]?:\/\/.*/', $_dyncss_fn) )
                 {
-                    $_dyncss_dependent_files[$_dyncss_fn] = stat( $_dyncss_fn );
+                    $_dyncss_dependent_files[$_dyncss_fn] = @stat( $_dyncss_fn );
                 }
             }
             else
@@ -379,11 +379,11 @@ function filter( $_dyncss_input )
         $_dyncss_css_file = getcwd()."/".$_dyncss_browser.preg_replace('/\?.*/', '', basename($_SERVER['REQUEST_URI']));
         if ( file_exists( $cache_file ) )
         {
-            $cache_stat = stat( $cache_file );
+            $cache_stat = @stat( $cache_file );
             $_dyncss_use_cache_file = true;
 
             // first see if the main CSS file is newer than cache
-            $_dyncss_css_stat = stat( $_dyncss_css_file );
+            $_dyncss_css_stat = @stat( $_dyncss_css_file );
             if ( $cache_stat['mtime'] < $_dyncss_css_stat['mtime'] )
             {
                 $_dyncss_use_cache_file = false;
@@ -398,7 +398,7 @@ function filter( $_dyncss_input )
                 {
                     foreach ( $_dyncss_dependent_files as $_dyncss_file => $_dyncss_stat )
                     {
-                        $_dyncss_css_stat = stat( getcwd()."/".$_dyncss_file );
+                        $_dyncss_css_stat = @stat( getcwd()."/".$_dyncss_file );
                         if ( ! $_dyncss_css_stat || $_dyncss_css_stat['mtime'] > $_dyncss_stat['mtime'] )
                         {
                             $_dyncss_use_cache_file = false;
