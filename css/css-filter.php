@@ -11,13 +11,28 @@
  * @version       Version 3.0
  */
 
-/* for command line testing
-$_SERVER = [
-    'HTTP_USER_AGENT' => 'linux',
-    'REQUEST_URI' => 'test.css',
-    'QUERY_STRING' => '',
-];
- */
+// for command line testing
+if ( empty($_SERVER['REQUEST_URI']) )
+{
+    if ( $argc < 1 )
+    {
+        die("ERROR: Usage ".$argv[0]." <css-file>");
+    }
+    $file = $argv[1];
+    $query_string = '';
+    for ($i = 2; $i < $argc; $i++)
+    {
+        $query_string .= (($i == 2)?'?':'&') . $argv[$i];
+    }
+    $_SERVER = [
+        'REQUEST_URI' => $file . $query_string,
+        'QUERY_STRING' => $query_string
+    ];
+}
+else
+{
+    $file = $_GET['file'];
+}
 
 $debug = false;
 $cache = true;
@@ -34,7 +49,7 @@ $matte_color = 'fff'; // matte color or alpha blending on transparent images
 $_dyncss_system_boolean_parameters = array('debug', 'cache', 'allow_eol_comments', 'compress', 'compress_comments', 'handle_pngs', 'use_alpha_filter', 'convert_to_png8');
 $_dyncss_system_string_parameters = array('filter_sizing_method');
 $_dyncss_expression_tokens = array('if','elseif','elif','eval');
-$_dyncss_vars = array();
+$_dyncss_dependent_files = array();
 
 // see if any settings were overridden
 if (isset($_SERVER['QUERY_STRING']))
@@ -48,28 +63,35 @@ if (isset($_SERVER['QUERY_STRING']))
             $_dyncss_value = substr($_dyncss_arg, $_dyncss_pos+1);
             if (in_array($_dyncss_key, $_dyncss_system_boolean_parameters))
             {
-                if ( strcasecmp($_dyncss_value, 'true') === 0
-                    || strcasecmp($_dyncss_value, 'yes') === 0
-                    || $_dyncss_value === 1 )
+                if ( strncasecmp($_dyncss_value, 'true', 4) === 0
+                    || strncasecmp($_dyncss_value, 'yes', 3) === 0
+                    || $_dyncss_value === '1' )
                 {
-                    $$_dyncss_key = true;
+                    ${$_dyncss_key} = true;
                 }
                 else
                 {
-                    $$_dyncss_key = false;
+                    ${$_dyncss_key} = false;
                 }
             }
             elseif (in_array($_dyncss_key, $_dyncss_system_string_parameters))
             {
-                $$_dyncss_key = $_dyncss_value;
+                ${$_dyncss_key} = "$_dyncss_value";
             }
         }
     }
 }
 
-function process( $_dyncss_fn, $_dyncss_level, $_dyncss_lines ) {
-    global $debug, $cache, $allow_eol_comments, $compress, $compress_comments, $handle_pngs, $matte_color, $_dyncss_expression_tokens, $_dyncss_vars; // , $_dyncss_start, $_dyncss_expires, $_dyncss_output;
-    //
+// var_dump(get_defined_vars()); exit;
+
+function process_css( $_dyncss_fn, $_dyncss_level, $_dyncss_lines, &$_dyncss_vars )
+{
+    global $debug, $cache, $allow_eol_comments, $compress, $compress_comments, $handle_pngs, $matte_color, $_dyncss_expression_tokens, $_dyncss_dependent_files;
+    foreach( $_dyncss_vars as $_dyncss_key => $_dyncss_value )
+    {
+        global ${$_dyncss_key};
+    }
+
     $_dyncss_line_number = 0;
     $_dyncss_if_level = 0;
     $_dyncss_ifs = array();
@@ -117,7 +139,7 @@ function process( $_dyncss_fn, $_dyncss_level, $_dyncss_lines ) {
         {
             $_dyncss_output .= ' contains expression: <'.(($_dyncss_contains_expression)?'YES':'NO').'> spans lines: <'.(($_dyncss_spans_lines)?'YES':'NO').'> line: '.$_dyncss_line_number." */\n";
         }
-        $_dyncss_line = substitute_delimited_vars( $_dyncss_line, $_dyncss_vars, ($_dyncss_contains_expression && ! $_dyncss_spans_lines) );
+        $_dyncss_line = substitute_vars( $_dyncss_line, $_dyncss_vars, ($_dyncss_contains_expression && ! $_dyncss_spans_lines) );
         $_dyncss_clauses = preg_split( '/([\{\};])/', str_replace('\\;', '<--|-->', $_dyncss_line), -1, PREG_SPLIT_DELIM_CAPTURE );
         $_dyncss_suppress_delimiter = false;
 
@@ -190,7 +212,12 @@ if ($debug) {$_dyncss_output .= "/* DEBUG line: {$_dyncss_line_number} Clause=<"
                 {
                     $_dyncss_key = $_dyncss_matches[1];
                     $_dyncss_value = rtrim($_dyncss_matches[2], "\r\n\t ;");
-                    $_dyncss_expr = @eval( 'return '.substitute_vars( $_dyncss_value, $_dyncss_vars, true ).';' );
+                    try {
+                        $_dyncss_expr = @eval( 'return '.substitute_vars( $_dyncss_value, $_dyncss_vars, true ).';' );
+                    } catch (ParseError $e) {
+                        $_dyncss_output .= '/* ERROR Failed to eval '.substitute_vars( $_dyncss_value, $_dyncss_vars, true )." */\n";
+                        $_dyncss_expr = '';
+                    }
                     if ($debug)
                     {
                         $_dyncss_output .= "/* DEBUG eval $".$_dyncss_key." = ".$_dyncss_value."  result: (".$_dyncss_expr.") */\n";
@@ -205,7 +232,12 @@ if ($debug) {$_dyncss_output .= "/* DEBUG line: {$_dyncss_line_number} Clause=<"
                 if ( $_dyncss_show_output )
                 {
                     $_dyncss_value = rtrim($_dyncss_matches[1], "\r\n\t ;");
-                    $_dyncss_expr = @eval( 'return '.substitute_vars( $_dyncss_value, $_dyncss_vars, true ).';' );
+                    try {
+                        $_dyncss_expr = @eval( 'return '.substitute_vars( $_dyncss_value, $_dyncss_vars, true ).';' );
+                    } catch (ParseError $e) {
+                        $_dyncss_output .= '/* ERROR Failed to eval '.substitute_vars( $_dyncss_value, $_dyncss_vars, true )." */\n";
+                        $_dyncss_expr = '';
+                    }
                     if ($debug)
                     {
                         $_dyncss_output .= "/* DEBUG eval ".$_dyncss_value."  result: (".$_dyncss_expr.") */\n";
@@ -230,7 +262,12 @@ if ($debug) {$_dyncss_output .= "/* DEBUG line: {$_dyncss_line_number} Clause=<"
                 if ( $_dyncss_show_output )
                 {
                     $_dyncss_value = rtrim($_dyncss_matches[1], "\r\n\t ;");
-                    $_dyncss_ifs[$_dyncss_if_level] = @eval( 'return (boolean)'.substitute_vars( $_dyncss_value, $_dyncss_vars, true ).';' );
+                    try {
+                        $_dyncss_ifs[$_dyncss_if_level] = @eval( 'return (boolean)('.substitute_vars( $_dyncss_value, $_dyncss_vars, true ).');' );
+                    } catch (ParseError $e) {
+                        $_dyncss_output .= '/* ERROR Failed to eval if clause '.substitute_vars( $_dyncss_value, $_dyncss_vars, true )." */\n";
+                        $_dyncss_ifs[$_dyncss_if_level] = false;
+                    }
                     $_dyncss_show_output = $_dyncss_ifs[$_dyncss_if_level];
                     if ($debug)
                     {
@@ -253,7 +290,12 @@ if ($debug) {$_dyncss_output .= "/* DEBUG line: {$_dyncss_line_number} Clause=<"
                     if ( ! $_dyncss_ifs[($_dyncss_if_level - 1)] )
                     {
                         $_dyncss_value = rtrim($_dyncss_matches[1], "\r\n\t ;");
-                        $_dyncss_ifs[($_dyncss_if_level - 1)] = @eval( 'return (boolean)'.substitute_vars( $_dyncss_value, $_dyncss_vars, true ).';' );
+                        try {
+                            $_dyncss_ifs[($_dyncss_if_level - 1)] = @eval( 'return (boolean)'.substitute_vars( $_dyncss_value, $_dyncss_vars, true ).';' );
+                        } catch (ParseError $e) {
+                            $_dyncss_output .= '/* ERROR Failed to eval if clause '.substitute_vars( $_dyncss_value, $_dyncss_vars, true )." */\n";
+                            $_dyncss_ifs[($_dyncss_if_level - 1)] = false;
+                        }
                         // $_dyncss_show_output = $_dyncss_ifs[($_dyncss_if_level - 1)];
                         $_dyncss_show_output = should_execute( $_dyncss_ifs, $_dyncss_if_level );
                         if ($debug)
@@ -302,8 +344,19 @@ if ($debug) {$_dyncss_output .= "/* DEBUG line: {$_dyncss_line_number} Clause=<"
                 {
                     $_dyncss_output .= "/* DEBUG including style file ".$_dyncss_fn." */";
                 }
-                $_dyncss_contents = file_get_contents( $_dyncss_fn );
-                $_dyncss_output .= process( $_dyncss_fn, ($_dyncss_level+1), explode( "\n", $_dyncss_contents ) );
+                if ( file_exists( $_dyncss_fn ) )
+                {
+                    $_dyncss_contents = file_get_contents( $_dyncss_fn );
+                }
+                else
+                {
+                    $_dyncss_contents = '';
+                    if ($debug)
+                    {
+                        $_dyncss_output .= "/* DEBUG ERROR missing file ".$_dyncss_fn." */";
+                    }
+                }
+                $_dyncss_output .= process_css( $_dyncss_fn, ($_dyncss_level+1), explode( "\n", $_dyncss_contents ), $_dyncss_vars );
                 if ( $cache && ! preg_match( '/http[s]?:\/\/.*/', $_dyncss_fn) )
                 {
                     $_dyncss_dependent_files[$_dyncss_fn] = @stat( $_dyncss_fn );
@@ -339,44 +392,19 @@ if ($debug) {$_dyncss_output .= "/* DEBUG line: {$_dyncss_line_number} Clause=<"
 
 function filter( $_dyncss_input )
 {
-    global $debug, $cache, $allow_eol_comments, $compress, $compress_comments, $handle_pngs, $matte_color, $_dyncss_expression_tokens, $_dyncss_vars; // , $_dyncss_start, $_dyncss_expires, $_dyncss_output;
+    global $_SERVER, $debug, $cache, $allow_eol_comments, $compress, $compress_comments, $handle_pngs, $matte_color, $_dyncss_expression_tokens, $_dyncss_system_boolean_parameters, $_dyncss_system_string_parameters, $_dyncss_dependent_files;
 
     header("Content-type: text/css;");
     header("Cache-Control: must-revalidate;");
 
+    $_dyncss_vars = array();
+    $cache_dir = getcwd()."/cache/";
+    $cache_file = $cache_dir.str_replace('/', '_', str_replace('?', '_', str_replace('&', '_', basename($_SERVER['REQUEST_URI']))));
+    $_dyncss_dependency_file = $cache_dir."dependency_".str_replace('/', '_', str_replace('?', '_', str_replace('&', '_', basename($_SERVER['REQUEST_URI']))));
+    $_dyncss_css_file = getcwd()."/".preg_replace('/\?.*/', '', basename($_SERVER['REQUEST_URI']));
+
     if ( $cache )
     {
-        // see if we need a browser specific cache file
-        $_dyncss_browser = '';
-        if ( $handle_pngs )
-        {
-            $_dyncss_msie_no_filter = '/msie\s([1-4]|5\.[0-4]).*(win)/i';
-            $_dyncss_msie = '/msie\s(5\.[5-9]|6\.).*(win)/i';
-            $_dyncss_msie_ok = '/msie\s[7-9].*(win)/i';
-            $_dyncss_msie_no_filter = '/msie\s([0-4]\.|5\.[0-4]).*(win)/i';
-            $_dyncss_opera = '/opera/i';
-
-            if ( isset($_SERVER['HTTP_USER_AGENT']) )
-            {
-                if ( preg_match($_dyncss_msie, $_SERVER['HTTP_USER_AGENT'])
-                    && ! preg_match($_dyncss_msie_ok, $_SERVER['HTTP_USER_AGENT'])
-                    && ! preg_match($_dyncss_opera, $_SERVER['HTTP_USER_AGENT']) )
-                {
-                    $_dyncss_browser = 'ie6_';
-                }
-                elseif ( preg_match($_dyncss_msie_no_filter, $_SERVER['HTTP_USER_AGENT'])
-                    && ! preg_match($_dyncss_msie_ok, $_SERVER['HTTP_USER_AGENT'])
-                    && ! preg_match($_dyncss_opera, $_SERVER['HTTP_USER_AGENT']) )
-                {
-                    $_dyncss_browser = 'ie5_';
-                }
-            }
-        }
-
-        $cache_dir = getcwd()."/cache/";
-        $cache_file = $cache_dir.$_dyncss_browser.str_replace('?', '_', str_replace('&', '_', basename($_SERVER['REQUEST_URI'])));
-        $_dyncss_dependency_file = $cache_dir.$_dyncss_browser."dependency_".str_replace('?', '_', str_replace('&', '_', basename($_SERVER['REQUEST_URI'])));
-        $_dyncss_css_file = getcwd()."/".$_dyncss_browser.preg_replace('/\?.*/', '', basename($_SERVER['REQUEST_URI']));
         if ( file_exists( $cache_file ) )
         {
             $cache_stat = @stat( $cache_file );
@@ -384,7 +412,7 @@ function filter( $_dyncss_input )
 
             // first see if the main CSS file is newer than cache
             $_dyncss_css_stat = @stat( $_dyncss_css_file );
-            if ( $cache_stat['mtime'] < $_dyncss_css_stat['mtime'] )
+            if ( $cache_stat && $_dyncss_css_stat && $cache_stat['mtime'] < $_dyncss_css_stat['mtime'] )
             {
                 $_dyncss_use_cache_file = false;
             }
@@ -415,7 +443,6 @@ function filter( $_dyncss_input )
                 return "/* from cache */\n".$_dyncss_output;
             }
         }
-        $_dyncss_dependent_files = array();
     }
 
     $_dyncss_output = "";
@@ -427,9 +454,9 @@ function filter( $_dyncss_input )
     if ($debug)
     {
         $_dyncss_output = "/* DEBUG filter start ".date_format(date_create("now"), "Y-m-d H:i:s")." */\n";
+        // $_dyncss_output .= "/* debug: $debug, cache: $cache, allow_eol_comments: $allow_eol_comments, compress: $compress, compress_comments: $compress_comments, handle_pngs: $handle_pngs, matte_color: $matte_color */\n";
     }
 
-    // treat any passed parameters as variables
     if (isset($_SERVER['QUERY_STRING']))
     {
         $_dyncss_arr = explode('&', html_entity_decode(ltrim($_SERVER['QUERY_STRING'], '?')));
@@ -439,13 +466,18 @@ function filter( $_dyncss_input )
             {
                 $_dyncss_key = substr($_dyncss_arg, 0, $_dyncss_pos);
                 $_dyncss_value = strip_quotes( substr($_dyncss_arg, $_dyncss_pos+1) );
-                $_dyncss_vars[$_dyncss_key] = $_dyncss_value;
-                $$_dyncss_key = $_dyncss_value;
+                // don't override script variables
+                if ( ! in_array($_dyncss_key, $_dyncss_system_boolean_parameters)
+                  && ! in_array($_dyncss_key, $_dyncss_system_string_parameters))
+                {
+                    $_dyncss_vars[$_dyncss_key] = $_dyncss_value;
+                    ${$_dyncss_key} = $_dyncss_value;
+                }
             }
         }
     }
 
-    $_dyncss_output .= process( basename($_SERVER['REQUEST_URI']), $_dyncss_level, explode( "\n", $_dyncss_input ) );
+    $_dyncss_output .= process_css( basename($_SERVER['REQUEST_URI']), $_dyncss_level, explode( "\n", $_dyncss_input ), $_dyncss_vars );
 
     $_dyncss_expDate = gmdate("D, d M Y H:i:s", time() + $_dyncss_expires) . " GMT";
     header("Expires: ".$_dyncss_expDate);
@@ -493,8 +525,12 @@ function filter( $_dyncss_input )
     {
         if ( ! file_exists( $cache_dir ) )
         {
-            // create cache directory and make it writable
-            mkdir( $cache_dir );
+            // create cache directory
+            @mkdir( $cache_dir );
+        }
+        if ( ! is_writable( $cache_dir ) )
+        {
+            // make sure it is writable
             @chmod( $cache_dir, 0777 );
         }
         $_dyncss_rc = @file_put_contents( $cache_file, $_dyncss_output );
@@ -759,9 +795,7 @@ function convert_alpha( &$_dyncss_image, $_dyncss_bg_red=255, $_dyncss_bg_green=
 }
 
 
-ob_start ("filter");
-
-/* for command line testing
-$contents = file_get_contents( $_SERVER['REQUEST_URI'] );
+ob_start("filter");
+$contents = file_get_contents( $file );
 echo $contents;
- */
+ob_end_flush();

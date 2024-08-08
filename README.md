@@ -31,8 +31,8 @@ CSS is a great way to keep your presentation out of your content (HTML). Wouldn'
 Just set variables at the top of your CSS file like:
 
 ```PHP
-set $color = #33CCFF;
-set $background-color = #000000;
+set color = #33CCFF;
+set background-color = #000000;
 ```
 Now everywhere you use these colors, just use the variables instead:
 
