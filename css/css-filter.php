@@ -330,7 +330,7 @@ if ($debug) {$_dyncss_output .= "/* DEBUG line: {$_dyncss_line_number} Clause=<"
                 $_dyncss_if_level--;
                 if ($_dyncss_if_level < 0)
                 {
-                    $_dyncss_output .= "/* ERROR unmatched endif at line ".$_dyncss_line_number." */";
+                    $_dyncss_output .= "/* ERROR unmatched endif at line ".$_dyncss_line_number." */\n";
                 }
                 $_dyncss_show_output = should_execute( $_dyncss_ifs, $_dyncss_if_level );
             }
@@ -342,7 +342,7 @@ if ($debug) {$_dyncss_output .= "/* DEBUG line: {$_dyncss_line_number} Clause=<"
                 $_dyncss_fn = substitute_vars( $_dyncss_value, $_dyncss_vars );
                 if ($debug)
                 {
-                    $_dyncss_output .= "/* DEBUG including style file ".$_dyncss_fn." */";
+                    $_dyncss_output .= "/* DEBUG including style file ".getcwd()."/".$_dyncss_fn." */\n";
                 }
                 if ( file_exists( $_dyncss_fn ) )
                 {
@@ -353,7 +353,7 @@ if ($debug) {$_dyncss_output .= "/* DEBUG line: {$_dyncss_line_number} Clause=<"
                     $_dyncss_contents = '';
                     if ($debug)
                     {
-                        $_dyncss_output .= "/* DEBUG ERROR missing file ".$_dyncss_fn." */";
+                        $_dyncss_output .= "/* WARNING missing file ".getcwd()."/".$_dyncss_fn." */\n";
                     }
                 }
                 $_dyncss_output .= process_css( $_dyncss_fn, ($_dyncss_level+1), explode( "\n", $_dyncss_contents ), $_dyncss_vars );
@@ -403,6 +403,8 @@ function filter( $_dyncss_input )
     $_dyncss_dependency_file = $cache_dir."dependency_".str_replace('/', '_', str_replace('?', '_', str_replace('&', '_', basename($_SERVER['REQUEST_URI']))));
     $_dyncss_css_file = getcwd()."/".preg_replace('/\?.*/', '', basename($_SERVER['REQUEST_URI']));
 
+    $_dyncss_output = "";
+
     if ( $cache )
     {
         if ( file_exists( $cache_file ) )
@@ -426,11 +428,17 @@ function filter( $_dyncss_input )
                 {
                     foreach ( $_dyncss_dependent_files as $_dyncss_file => $_dyncss_stat )
                     {
-                        $_dyncss_css_stat = @stat( getcwd()."/".$_dyncss_file );
-                        if ( ! $_dyncss_css_stat || $_dyncss_css_stat['mtime'] > $_dyncss_stat['mtime'] )
+                        if (($_dyncss_css_stat = @stat( getcwd()."/".$_dyncss_file )))
                         {
-                            $_dyncss_use_cache_file = false;
-                            break;
+                            if ( ! $_dyncss_css_stat || $_dyncss_css_stat['mtime'] > $_dyncss_stat['mtime'] )
+                            {
+                                $_dyncss_use_cache_file = false;
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            // $_dyncss_output .= "/* WARNING: CSS include file ".$_dyncss_file." not found */\n";
                         }
                     }
                 }
@@ -439,13 +447,11 @@ function filter( $_dyncss_input )
             // is the cache file still Ok?
             if ( $_dyncss_use_cache_file )
             {
-                $_dyncss_output = file_get_contents( $cache_file );
+                $_dyncss_output .= file_get_contents( $cache_file );
                 return "/* from cache */\n".$_dyncss_output;
             }
         }
     }
-
-    $_dyncss_output = "";
 
     $_dyncss_expires = 31536000; // default expires in 1 year
     $_dyncss_start = microtime(true);
@@ -534,7 +540,7 @@ function filter( $_dyncss_input )
             @chmod( $cache_dir, 0777 );
         }
         $_dyncss_rc = @file_put_contents( $cache_file, $_dyncss_output );
-        // $_dyncss_output .= "/* file put returned ".$_dyncss_rc." */";
+        // $_dyncss_output .= "/* file put returned ".$_dyncss_rc." */\n";
 
         // save the depencies if there are any
         if ( count( $_dyncss_dependent_files ) > 0 )
